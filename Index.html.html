@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Workouts" />
+  <title>My Workouts</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Bebas+Neue&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; background: #0d0d0f; color: #f0f0f0; font-family: 'Space Mono', monospace; -webkit-tap-highlight-color: transparent; }
+    input:focus { outline: none; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+    #app { min-height: 100vh; min-height: -webkit-fill-available; display: flex; flex-direction: column; }
+
+    #header {
+      padding-top: max(env(safe-area-inset-top, 20px), 20px);
+      padding-left: 20px; padding-right: 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      background: rgba(13,13,15,0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      position: sticky; top: 0; z-index: 10;
+    }
+    #header-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px; }
+    .subtitle { font-size: 11px; color: rgba(255,255,255,0.3); letter-spacing: 0.2em; margin-bottom: 4px; }
+    #current-day-title { font-family: 'Bebas Neue', sans-serif; font-size: 36px; line-height: 1; color: #f8c84a; letter-spacing: 0.04em; }
+    #saved-badge { font-size: 11px; color: #4ade80; letter-spacing: 0.05em; opacity: 0; transition: opacity 0.4s ease; }
+
+    #day-tabs { display: flex; gap: 4px; }
+    .day-tab {
+      flex: 1; padding: 10px 4px 0; background: transparent; border: none;
+      border-bottom: 2px solid transparent; color: rgba(255,255,255,0.3);
+      cursor: pointer; font-size: 10px; font-family: 'Space Mono', monospace;
+      letter-spacing: 0.04em; transition: all 0.2s; white-space: nowrap; text-align: center;
+    }
+    .day-tab.active { border-bottom-color: #f8c84a; color: #f8c84a; font-weight: 700; }
+    .day-dot { width: 4px; height: 4px; border-radius: 50%; margin: 4px auto 2px; background: rgba(255,255,255,0.3); }
+    .day-tab.active .day-dot { background: #f8c84a; }
+
+    #content {
+      padding: 20px 16px;
+      padding-bottom: max(100px, calc(80px + env(safe-area-inset-bottom, 0px)));
+      flex: 1; overflow-y: auto;
+    }
+
+    #empty-state { text-align: center; padding: 60px 20px; color: rgba(255,255,255,0.2); font-size: 13px; letter-spacing: 0.1em; display: none; }
+    #empty-state .emoji { font-size: 40px; margin-bottom: 16px; opacity: 0.3; }
+    #empty-state .sub { font-size: 11px; margin-top: 8px; opacity: 0.6; }
+
+    .exercise-card { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .exercise-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .exercise-name {
+      flex: 1; background: transparent; border: none;
+      border-bottom: 1px solid rgba(255,255,255,0.2);
+      color: #f0f0f0; font-size: 15px; font-family: 'Space Mono', monospace;
+      font-weight: 600; padding: 4px 0; letter-spacing: 0.02em;
+    }
+    .exercise-name::placeholder { color: rgba(255,255,255,0.25); }
+    .btn-delete-exercise { background: none; border: none; color: rgba(255,100,100,0.5); cursor: pointer; font-size: 22px; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+    .btn-delete-exercise:active { color: rgba(255,100,100,1); }
+
+    .sets-list { display: flex; flex-direction: column; gap: 8px; }
+    .set-row { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.03); border-radius: 8px; padding: 8px 10px; }
+    .set-label { color: rgba(255,255,255,0.3); font-size: 11px; min-width: 24px; }
+    .reps-group { display: flex; align-items: center; gap: 4px; }
+    .weight-group { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+    .field-label { color: rgba(255,255,255,0.3); font-size: 11px; }
+
+    .num-input {
+      background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 6px; color: #f0f0f0; text-align: center; font-size: 14px;
+      font-family: 'Space Mono', monospace; padding: 6px 4px;
+    }
+    .num-input.weight { color: #f8c84a; font-weight: 700; width: 60px; }
+    .num-input.reps { width: 46px; }
+
+    .btn-adjust {
+      width: 34px; height: 34px; background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: #f0f0f0;
+      cursor: pointer; font-size: 20px; line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; user-select: none;
+    }
+    .btn-adjust:active { background: rgba(255,255,255,0.2); }
+
+    .btn-delete-set { background: none; border: none; color: rgba(255,255,255,0.2); cursor: pointer; font-size: 18px; padding: 0 2px; }
+    .btn-delete-set:active { color: rgba(255,100,100,0.7); }
+
+    .btn-add-set {
+      background: transparent; border: 1px dashed rgba(255,255,255,0.15);
+      border-radius: 8px; color: rgba(255,255,255,0.4); cursor: pointer;
+      padding: 9px; font-size: 12px; font-family: 'Space Mono', monospace;
+      letter-spacing: 0.08em; margin-top: 2px; width: 100%;
+    }
+    .btn-add-set:active { border-color: rgba(248,200,74,0.4); color: #f8c84a; }
+
+    #btn-add-exercise {
+      width: 100%; padding: 16px;
+      background: linear-gradient(135deg, rgba(248,200,74,0.12), rgba(248,200,74,0.06));
+      border: 1px solid rgba(248,200,74,0.25); border-radius: 12px; color: #f8c84a;
+      cursor: pointer; font-size: 13px; font-family: 'Space Mono', monospace;
+      font-weight: 700; letter-spacing: 0.12em; margin-top: 4px;
+    }
+    #btn-add-exercise:active { background: rgba(248,200,74,0.18); border-color: rgba(248,200,74,0.5); }
+
+    #btn-summary {
+      width: 100%; padding: 14px; background: transparent;
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+      color: rgba(255,255,255,0.4); cursor: pointer; font-size: 13px;
+      font-family: 'Space Mono', monospace; font-weight: 700;
+      letter-spacing: 0.12em; margin-top: 10px;
+    }
+    #btn-summary:active { border-color: rgba(255,255,255,0.3); color: rgba(255,255,255,0.7); }
+
+    /* Modal */
+    #modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75); z-index: 100;
+      align-items: flex-end; justify-content: center;
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    }
+    #modal-overlay.open { display: flex; }
+    #modal {
+      background: #1a1a1e; border-radius: 20px 20px 0 0; width: 100%;
+      max-height: 80vh; padding: 24px 20px;
+      padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    #modal-title { font-family: 'Bebas Neue', sans-serif; font-size: 26px; color: #f8c84a; letter-spacing: 0.04em; }
+    #modal-body {
+      flex: 1; overflow-y: auto;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px; padding: 16px; font-size: 13px; line-height: 2;
+      color: #e0e0e0; white-space: pre-wrap; font-family: 'Space Mono', monospace;
+    }
+    #modal-actions { display: flex; gap: 10px; }
+    #btn-copy {
+      flex: 1; padding: 14px;
+      background: linear-gradient(135deg, rgba(248,200,74,0.15), rgba(248,200,74,0.07));
+      border: 1px solid rgba(248,200,74,0.3); border-radius: 10px; color: #f8c84a;
+      cursor: pointer; font-size: 13px; font-family: 'Space Mono', monospace;
+      font-weight: 700; letter-spacing: 0.1em;
+    }
+    #btn-copy:active { background: rgba(248,200,74,0.25); }
+    #btn-close-modal {
+      padding: 14px 20px; background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1); border-radius: 10px;
+      color: rgba(255,255,255,0.4); cursor: pointer; font-size: 13px;
+      font-family: 'Space Mono', monospace; font-weight: 700; letter-spacing: 0.1em;
+    }
+    #btn-close-modal:active { background: rgba(255,255,255,0.1); }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="header">
+    <div id="header-top">
+      <div>
+        <div class="subtitle">MY WORKOUTS</div>
+        <div id="current-day-title">DAY 1</div>
+      </div>
+      <span id="saved-badge">&#10003; SAVED</span>
+    </div>
+    <div id="day-tabs"></div>
+  </div>
+  <div id="content">
+    <div id="empty-state">
+      <div class="emoji">&#127947;</div>
+      NO EXERCISES YET
+      <div class="sub">Tap below to add your first exercise</div>
+    </div>
+    <div id="exercises-list"></div>
+    <button id="btn-add-exercise">+ ADD EXERCISE</button>
+    <button id="btn-summary">&#128203; WORKOUT SUMMARY</button>
+  </div>
+</div>
+
+<div id="modal-overlay">
+  <div id="modal">
+    <div id="modal-title">SUMMARY</div>
+    <div id="modal-body"></div>
+    <div id="modal-actions">
+      <button id="btn-copy">COPY</button>
+      <button id="btn-close-modal">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var DAYS = ["Day 1","Day 2","Day 3","Day 4","Day 5"];
+var STORAGE_KEY = "gym-tracker-v3";
+var activeDay = 0;
+var workouts = {"Day 1":[],"Day 2":[],"Day 3":[],"Day 4":[],"Day 5":[]};
+var saveTimer = null;
+
+function load() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) workouts = JSON.parse(raw);
+  } catch(e) {}
+  render();
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(workouts));
+    flashSaved();
+  } catch(e) {}
+}
+
+function flashSaved() {
+  var badge = document.getElementById("saved-badge");
+  badge.style.opacity = "1";
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function() { badge.style.opacity = "0"; }, 1800);
+}
+
+function uid() { return Math.random().toString(36).slice(2,9); }
+function currentDay() { return DAYS[activeDay]; }
+function getExercises() { return workouts[currentDay()] || []; }
+
+function render() {
+  renderTabs();
+  renderExercises();
+}
+
+function renderTabs() {
+  var container = document.getElementById("day-tabs");
+  container.innerHTML = "";
+  DAYS.forEach(function(d, i) {
+    var btn = document.createElement("button");
+    btn.className = "day-tab" + (i === activeDay ? " active" : "");
+    var hasEx = workouts[d] && workouts[d].length > 0;
+    btn.innerHTML = "DAY " + (i+1) + (hasEx ? '<div class="day-dot"></div>' : '<div style="height:6px"></div>');
+    btn.addEventListener("click", function() { activeDay = i; render(); });
+    container.appendChild(btn);
+  });
+  document.getElementById("current-day-title").textContent = currentDay().toUpperCase();
+}
+
+function renderExercises() {
+  var list = document.getElementById("exercises-list");
+  var empty = document.getElementById("empty-state");
+  var exs = getExercises();
+  list.innerHTML = "";
+  empty.style.display = exs.length === 0 ? "block" : "none";
+  exs.forEach(function(ex, exIdx) {
+    list.appendChild(buildExerciseCard(ex, exIdx));
+  });
+}
+
+function buildExerciseCard(ex, exIdx) {
+  var card = document.createElement("div");
+  card.className = "exercise-card";
+
+  var header = document.createElement("div");
+  header.className = "exercise-header";
+
+  var nameInput = document.createElement("input");
+  nameInput.className = "exercise-name";
+  nameInput.type = "text";
+  nameInput.placeholder = "Exercise name...";
+  nameInput.value = ex.name || "";
+  nameInput.autocomplete = "off";
+  nameInput.addEventListener("change", function(e) {
+    ex.name = e.target.value;
+    save();
+  });
+
+  var delBtn = document.createElement("button");
+  delBtn.className = "btn-delete-exercise";
+  delBtn.textContent = "\u00D7";
+  delBtn.addEventListener("click", function() {
+    workouts[currentDay()].splice(exIdx, 1);
+    save(); render();
+  });
+
+  header.appendChild(nameInput);
+  header.appendChild(delBtn);
+  card.appendChild(header);
+
+  var setsList = document.createElement("div");
+  setsList.className = "sets-list";
+
+  ex.sets.forEach(function(set, setIdx) {
+    setsList.appendChild(buildSetRow(ex, set, setIdx));
+  });
+
+  var addSetBtn = document.createElement("button");
+  addSetBtn.className = "btn-add-set";
+  addSetBtn.textContent = "+ ADD SET";
+  addSetBtn.addEventListener("click", function() {
+    var last = ex.sets[ex.sets.length - 1];
+    ex.sets.push({ id: uid(), weight: last ? last.weight : 0, reps: last ? last.reps : 10 });
+    save(); renderExercises();
+  });
+
+  setsList.appendChild(addSetBtn);
+  card.appendChild(setsList);
+  return card;
+}
+
+function buildSetRow(ex, set, setIdx) {
+  var row = document.createElement("div");
+  row.className = "set-row";
+
+  var label = document.createElement("span");
+  label.className = "set-label";
+  label.textContent = "S" + (setIdx + 1);
+  row.appendChild(label);
+
+  // Reps
+  var repsGroup = document.createElement("div");
+  repsGroup.className = "reps-group";
+
+  var repsInput = document.createElement("input");
+  repsInput.className = "num-input reps";
+  repsInput.type = "text";
+  repsInput.inputMode = "numeric";
+  repsInput.pattern = "[0-9]*";
+  repsInput.value = set.reps;
+  repsInput.addEventListener("focus", function(e) { e.target.select(); });
+  repsInput.addEventListener("blur", function(e) {
+    var val = parseInt(e.target.value);
+    set.reps = isNaN(val) ? 0 : Math.max(0, val);
+    e.target.value = set.reps;
+    save();
+  });
+
+  var repsLabel = document.createElement("span");
+  repsLabel.className = "field-label";
+  repsLabel.textContent = "reps";
+
+  repsGroup.appendChild(repsInput);
+  repsGroup.appendChild(repsLabel);
+  row.appendChild(repsGroup);
+
+  // Weight
+  var wGroup = document.createElement("div");
+  wGroup.className = "weight-group";
+
+  var minusBtn = document.createElement("button");
+  minusBtn.className = "btn-adjust";
+  minusBtn.textContent = "\u2212";
+  minusBtn.addEventListener("click", function() {
+    set.weight = Math.max(0, parseFloat((set.weight - 5).toFixed(2)));
+    save(); renderExercises();
+  });
+
+  var weightInput = document.createElement("input");
+  weightInput.className = "num-input weight";
+  weightInput.type = "text";
+  weightInput.inputMode = "decimal";
+  weightInput.pattern = "[0-9]*\\.?[0-9]*";
+  weightInput.value = set.weight;
+  weightInput.addEventListener("focus", function(e) { e.target.select(); });
+  weightInput.addEventListener("blur", function(e) {
+    var val = parseFloat(e.target.value);
+    set.weight = isNaN(val) ? 0 : Math.max(0, val);
+    e.target.value = set.weight;
+    save();
+  });
+
+  var plusBtn = document.createElement("button");
+  plusBtn.className = "btn-adjust";
+  plusBtn.textContent = "+";
+  plusBtn.addEventListener("click", function() {
+    set.weight = parseFloat((set.weight + 5).toFixed(2));
+    save(); renderExercises();
+  });
+
+  var lbsLabel = document.createElement("span");
+  lbsLabel.className = "field-label";
+  lbsLabel.textContent = "lbs";
+
+  wGroup.appendChild(minusBtn);
+  wGroup.appendChild(weightInput);
+  wGroup.appendChild(plusBtn);
+  wGroup.appendChild(lbsLabel);
+  row.appendChild(wGroup);
+
+  var delSet = document.createElement("button");
+  delSet.className = "btn-delete-set";
+  delSet.textContent = "\u00D7";
+  delSet.addEventListener("click", function() {
+    ex.sets.splice(setIdx, 1);
+    save(); renderExercises();
+  });
+  row.appendChild(delSet);
+
+  return row;
+}
+
+// Summary
+function buildSummaryText() {
+  var exs = getExercises();
+  if (!exs.length) return "No exercises logged for " + currentDay() + ".";
+  var lines = [currentDay().toUpperCase() + " — WORKOUT SUMMARY", ""];
+  exs.forEach(function(ex) {
+    var name = ex.name || "Unnamed Exercise";
+    if (!ex.sets || !ex.sets.length) { lines.push(name); return; }
+    // Group consecutive sets with same weight
+    var groups = [];
+    ex.sets.forEach(function(s) {
+      var last = groups[groups.length - 1];
+      if (last && last.weight === s.weight) {
+        last.reps.push(s.reps);
+      } else {
+        groups.push({ weight: s.weight, reps: [s.reps] });
+      }
+    });
+    var setStr = groups.map(function(g) {
+      var allSame = g.reps.every(function(r) { return r === g.reps[0]; });
+      if (allSame) {
+        return g.reps.length + "\u00D7" + g.reps[0] + " @ " + g.weight + "lbs";
+      } else {
+        return g.reps.map(function(r) { return r + " @ " + g.weight + "lbs"; }).join(", ");
+      }
+    }).join("  \u2192  ");
+    lines.push(name + ": " + setStr);
+  });
+  return lines.join("\n");
+}
+
+document.getElementById("btn-add-exercise").addEventListener("click", function() {
+  workouts[currentDay()].push({ id: uid(), name: "", sets: [{ id: uid(), weight: 0, reps: 10 }] });
+  save(); renderExercises();
+  setTimeout(function() {
+    var inputs = document.querySelectorAll(".exercise-name");
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  }, 50);
+});
+
+document.getElementById("btn-summary").addEventListener("click", function() {
+  var text = buildSummaryText();
+  document.getElementById("modal-title").textContent = currentDay().toUpperCase() + " \u2014 SUMMARY";
+  document.getElementById("modal-body").textContent = text;
+  document.getElementById("modal-overlay").classList.add("open");
+});
+
+document.getElementById("btn-close-modal").addEventListener("click", function() {
+  document.getElementById("modal-overlay").classList.remove("open");
+});
+
+document.getElementById("modal-overlay").addEventListener("click", function(e) {
+  if (e.target === document.getElementById("modal-overlay")) {
+    document.getElementById("modal-overlay").classList.remove("open");
+  }
+});
+
+document.getElementById("btn-copy").addEventListener("click", function() {
+  var text = document.getElementById("modal-body").textContent;
+  var btn = document.getElementById("btn-copy");
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      btn.textContent = "\u2713 COPIED!";
+      setTimeout(function() { btn.textContent = "COPY"; }, 2000);
+    });
+  } else {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand("copy"); } catch(e) {}
+    document.body.removeChild(ta);
+    btn.textContent = "\u2713 COPIED!";
+    setTimeout(function() { btn.textContent = "COPY"; }, 2000);
+  }
+});
+
+load();
+</script>
+</body>
+</html>
